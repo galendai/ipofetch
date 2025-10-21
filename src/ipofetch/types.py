@@ -55,3 +55,51 @@ URLString = str
 FilePath = str
 HTMLContent = str
 JSONDict = Dict[str, Any]
+
+
+class HKEXChapter(NamedTuple):
+    """港交所招股说明书章节信息."""
+
+    chapter_number: int
+    chapter_title: str
+    pdf_url: str
+    relative_path: str
+
+
+class ChapterMetadata(NamedTuple):
+    """章节级元数据."""
+
+    document_id: str
+    company_name: str
+    chapter_number: int
+    chapter_title: str
+    pdf_url: str
+    local_path: str
+    file_size: int
+    download_time: str
+    language: str
+
+
+class DocumentMetadata(NamedTuple):
+    """文档级元数据."""
+
+    document_id: str
+    company_name: str
+    original_url: str
+    total_chapters: int
+    download_date: str
+    chapters: List[ChapterMetadata]
+    language: str
+    exchange_type: str
+
+
+class BatchResult(NamedTuple):
+    """批量下载结果."""
+
+    total_chapters: int
+    successful_downloads: int
+    failed_downloads: int
+    download_results: List[DownloadResult]
+    total_size: int
+    total_time: float
+    errors: List[str]
