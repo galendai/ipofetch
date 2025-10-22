@@ -1,8 +1,7 @@
 """Parser for HKEXnews prospectus pages."""
+from __future__ import annotations
 
 import re
-from typing import List
-from typing import Optional
 from urllib.parse import urljoin
 from urllib.parse import urlparse
 
@@ -15,7 +14,7 @@ from ipofetch.types import HKEXChapter
 class HKEXNewsParser(BaseParser):
     """Parser for HKEXnews prospectus pages."""
 
-    def extract_pdf_links(self, url: str, html_content: str) -> List[str]:
+    def extract_pdf_links(self, url: str, html_content: str) -> list[str]:
         """Extract PDF download links from HKEXnews HTML content.
 
         Args:
@@ -32,7 +31,7 @@ class HKEXNewsParser(BaseParser):
         chapters = self.extract_chapters(url, html_content)
         return [chapter.pdf_url for chapter in chapters]
 
-    def extract_chapters(self, url: str, html_content: str) -> List[HKEXChapter]:
+    def extract_chapters(self, url: str, html_content: str) -> list[HKEXChapter]:
         """Extract chapter information from HKEXnews HTML content.
 
         Args:
@@ -51,37 +50,37 @@ class HKEXNewsParser(BaseParser):
         try:
             tree = html.fromstring(html_content)
             chapters = []
-            
-            # Find all PDF links in the document
+
+            # Get base URL for relative links
+            base_url = self._get_base_url(url)
+
+            # Find all PDF links
             pdf_links = tree.xpath('//a[contains(@href, ".pdf")]')
-            
+
             for i, link in enumerate(pdf_links, 1):
-                href = link.get('href', '').strip()
+                href = link.get("href", "")
                 text = link.text_content().strip()
-                
+
                 if not href or not text:
                     continue
-                
-                # Build absolute PDF URL
-                base_url = self._get_base_url(url)
-                if href.startswith('http'):
-                    pdf_url = href
-                else:
-                    # Handle relative paths like "10556163/sehk22120700986_c.pdf"
-                    pdf_url = urljoin(base_url, href)
-                
+
+                # Construct full PDF URL
+                pdf_url = urljoin(base_url, href) if not href.startswith("http") else href
+
                 chapter = HKEXChapter(
                     chapter_number=i,
-                    chapter_title=text,
+                    chapter_title=self._generate_english_title(text, i),
+                    chapter_title_original=text,
                     pdf_url=pdf_url,
                     relative_path=href
                 )
                 chapters.append(chapter)
-            
-            return chapters
 
         except Exception as e:
-            raise RuntimeError(f"Failed to parse HKEXnews HTML content: {e}") from e
+            msg = f"Failed to parse HKEXnews HTML content: {e}"
+            raise RuntimeError(msg) from e
+        else:
+            return chapters
 
     def extract_company_name(self, html_content: str) -> str:
         """Extract company name from HTML content.
@@ -97,28 +96,26 @@ class HKEXNewsParser(BaseParser):
 
         try:
             tree = html.fromstring(html_content)
-            
+
             # Look for company name in the specific font element with type="compName"
             company_elements = tree.xpath('//font[@type="compName"]')
             if company_elements:
                 company_name = company_elements[0].text_content().strip()
                 # Remove the " - B" suffix if present
-                company_name = re.sub(r'\s*-\s*[A-Z]$', '', company_name)
-                return company_name
-            
+                return re.sub(r"\s*-\s*[A-Z]$", "", company_name)
+
             # Fallback: look for bold text that might be company name
-            bold_elements = tree.xpath('//b')
+            bold_elements = tree.xpath("//b")
             for element in bold_elements:
                 text = element.text_content().strip()
                 if text and len(text) > 5:  # Reasonable company name length
                     # Remove the " - B" suffix if present
-                    text = re.sub(r'\s*-\s*[A-Z]$', '', text)
-                    return text
-            
-            return ""
+                    return re.sub(r"\s*-\s*[A-Z]$", "", text)
 
-        except Exception:
-            return ""
+        except (ValueError, TypeError, AttributeError):
+            pass
+
+        return ""
 
     def get_expected_chapter_count(self) -> int:
         """Get expected chapter count for HKEXnews documents.
@@ -139,7 +136,7 @@ class HKEXNewsParser(BaseParser):
         """
         return "hkexnews.hk" in url.lower()
 
-    def _extract_document_id(self, url: str) -> Optional[str]:
+    def _extract_document_id(self, url: str) -> str | None:
         """Extract document ID from HKEXnews URL.
 
         Args:
@@ -148,10 +145,16 @@ class HKEXNewsParser(BaseParser):
         Returns:
             Document ID if found, None otherwise
         """
-        # Pattern: /YYYY/MM/DD/XXXXXXXXXX_c.htm (document ID can be 10-13 digits)
-        match = re.search(r'/(\d{10,13})_c\.htm', url)
+        # Pattern 1: /YYYY/MM/DD/XXXXXXXXXX_c.htm (document ID can be 10-13 digits)
+        match = re.search(r"/(\d{10,13})_c\.htm", url)
         if match:
             return match.group(1)
+
+        # Pattern 2: /ltnYYYYMMDDXXX_c.htm (like ltn20100913006_c.htm)
+        match = re.search(r"/ltn(\d{11})_c\.htm", url)
+        if match:
+            return match.group(1)
+
         return None
 
     def _get_base_url(self, url: str) -> str:
@@ -165,9 +168,60 @@ class HKEXNewsParser(BaseParser):
         """
         parsed = urlparse(url)
         # Remove the filename part to get directory URL
-        path_parts = parsed.path.rstrip('/').split('/')
-        if path_parts and path_parts[-1].endswith('.htm'):
+        path_parts = parsed.path.rstrip("/").split("/")
+        if path_parts and path_parts[-1].endswith(".htm"):
             path_parts = path_parts[:-1]
-        
-        base_path = '/'.join(path_parts) + '/'
+
+        base_path = "/".join(path_parts) + "/"
         return f"{parsed.scheme}://{parsed.netloc}{base_path}"
+
+    def _generate_english_title(self, chinese_title: str, chapter_number: int) -> str:
+        """Generate English filename from Chinese title.
+
+        Args:
+            chinese_title: Original Chinese chapter title
+            chapter_number: Chapter number
+
+        Returns:
+            English filename suitable for filesystem
+        """
+        # Common chapter title mappings
+        title_mappings = {
+            "封面": "Cover",
+            "目录": "Table_of_Contents",
+            "概要": "Summary",
+            "释义": "Definitions",
+            "前瞻性陈述": "Forward_Looking_Statements",
+            "风险因素": "Risk_Factors",
+            "豁免严格遵守": "Waivers",
+            "董事及参与全球发售的各方": "Directors_and_Parties",
+            "公司资料": "Corporate_Information",
+            "行业概览": "Industry_Overview",
+            "监管概览": "Regulatory_Overview",
+            "历史及发展": "History_and_Development",
+            "业务": "Business",
+            "与控股股东的关系": "Relationship_with_Controlling_Shareholders",
+            "董事、监事及高级管理人员": "Directors_Supervisors_and_Senior_Management",
+            "股本": "Share_Capital",
+            "主要股东": "Substantial_Shareholders",
+            "财务资料": "Financial_Information",
+            "未来计划及所得款项用途": "Future_Plans_and_Use_of_Proceeds",
+            "包销": "Underwriting",
+            "全球发售的架构": "Structure_of_Global_Offering",
+            "如何申请香港发售股份": "How_to_Apply_for_Hong_Kong_Offer_Shares",
+            "附录": "Appendix",
+            "会计师报告": "Accountants_Report",
+            "未经审核备考财务资料": "Unaudited_Pro_Forma_Financial_Information",
+            "物业估值": "Property_Valuation",
+            "一般资料": "General_Information",
+            "送呈文件": "Documents_Delivered",
+            "法定及一般资料": "Statutory_and_General_Information"
+        }
+
+        # Try exact match first
+        for chinese, english in title_mappings.items():
+            if chinese in chinese_title:
+                return english
+
+        # If no match found, generate generic chapter name
+        return f"Chapter_{chapter_number:02d}"

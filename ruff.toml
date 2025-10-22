@@ -93,6 +93,16 @@ ignore = [
     "FIX002",  # line contains TODO
     "COM812",  # trailing comma missing (conflicts with formatter)
     "ISC001",  # implicitly concatenated string literals (conflicts with formatter)
+    "FBT001",  # boolean-typed positional argument (acceptable for CLI parameters)
+    "TRY301",  # abstract raise to inner function (acceptable for simple error handling)
+    "FBT003",  # boolean positional value in function call (acceptable for CLI defaults)
+    "BLE001",  # blind except (acceptable for top-level error handling)
+    "B904",    # raise without from inside except (acceptable for CLI error handling)
+    "S311",    # suspicious non-cryptographic random usage (acceptable for delays)
+    "PLC0415", # import outside top-level (acceptable for optional imports)
+    "SLF001",  # private member access (acceptable for internal usage)
+    "TRY300",  # try-consider-else (acceptable for simple error handling)
+    "PERF203", # try-except in loop (acceptable for error handling in loops)
 ]
 
 # Per-file ignores

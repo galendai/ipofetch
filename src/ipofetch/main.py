@@ -1,6 +1,5 @@
 """Main CLI entry point for IPO Prospectus Fetcher."""
-
-from typing import Optional
+from __future__ import annotations
 
 import typer
 from rich.console import Console
@@ -17,7 +16,7 @@ app = typer.Typer(
     add_completion=False,
     rich_markup_mode="rich",
 )
-console = Console()
+console = Console(soft_wrap=True, legacy_windows=False)
 
 
 def version_callback(value: bool) -> None:
@@ -26,7 +25,7 @@ def version_callback(value: bool) -> None:
         console.print(
             f"[bold blue]IPOFetch[/bold blue] version [green]{__version__}[/green]"
         )
-        raise typer.Exit()
+        raise typer.Exit
 
 
 @app.command()
@@ -36,7 +35,7 @@ def main(
         help="URL of the prospectus page to download PDF from",
         metavar="URL",
     ),
-    output: Optional[str] = typer.Option(
+    output: str | None = typer.Option(
         None,
         "--output",
         "-o",
@@ -49,7 +48,7 @@ def main(
         "-v",
         help="Enable verbose output mode",
     ),
-    version: Optional[bool] = typer.Option(
+    version: bool | None = typer.Option(
         None,
         "--version",
         callback=version_callback,
@@ -66,6 +65,9 @@ def main(
         ipofetch https://example.com/prospectus-page --output ./downloads/
         ipofetch https://example.com/prospectus-page --verbose
     """
+    # Mark version parameter as unused (handled by callback)
+    del version
+
     # Set default output directory if not provided
     output_dir = output or "./prospectus/"
 
@@ -99,6 +101,8 @@ def main(
                 )
         else:
             console.print("[red]✗[/red] Download failed!")
+            if result.get("error"):
+                console.print(f"[red]Error details:[/red] {result['error']}")
             raise typer.Exit(1)
 
     except Exception as e:

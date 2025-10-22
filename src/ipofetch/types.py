@@ -1,11 +1,11 @@
 """Type definitions for IPO Prospectus Fetcher."""
 
+from __future__ import annotations
+
 from enum import Enum
 from typing import Any
 from typing import Dict
-from typing import List
 from typing import NamedTuple
-from typing import Optional
 
 
 class ExchangeType(Enum):
@@ -25,16 +25,16 @@ class DownloadResult(NamedTuple):
     metadata_path: str
     file_size: int
     download_time: float
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 class ParseResult(NamedTuple):
     """Result of URL parsing operation."""
 
-    pdf_links: List[str]
+    pdf_links: list[str]
     exchange_type: ExchangeType
-    company_name: Optional[str] = None
-    document_title: Optional[str] = None
+    company_name: str | None = None
+    document_title: str | None = None
 
 
 class DownloadMetadata(NamedTuple):
@@ -62,6 +62,7 @@ class HKEXChapter(NamedTuple):
 
     chapter_number: int
     chapter_title: str
+    chapter_title_original: str  # 原始中文标题
     pdf_url: str
     relative_path: str
 
@@ -71,8 +72,10 @@ class ChapterMetadata(NamedTuple):
 
     document_id: str
     company_name: str
+    company_name_original: str  # 原始中文公司名
     chapter_number: int
-    chapter_title: str
+    chapter_title: str  # 英文文件名(用于文件系统)
+    chapter_title_original: str  # 原始中文标题
     pdf_url: str
     local_path: str
     file_size: int
@@ -84,11 +87,12 @@ class DocumentMetadata(NamedTuple):
     """文档级元数据."""
 
     document_id: str
-    company_name: str
+    company_name: str  # 英文文件名(用于文件系统)
+    company_name_original: str  # 原始中文公司名
     original_url: str
     total_chapters: int
     download_date: str
-    chapters: List[ChapterMetadata]
+    chapters: list[ChapterMetadata]
     language: str
     exchange_type: str
 
@@ -99,7 +103,7 @@ class BatchResult(NamedTuple):
     total_chapters: int
     successful_downloads: int
     failed_downloads: int
-    download_results: List[DownloadResult]
+    download_results: list[DownloadResult]
     total_size: int
     total_time: float
-    errors: List[str]
+    errors: list[str]

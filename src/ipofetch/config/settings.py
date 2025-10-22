@@ -1,7 +1,5 @@
 """Configuration settings for IPO Prospectus Fetcher."""
-
-from typing import Dict
-from typing import List
+from __future__ import annotations
 
 from pydantic import BaseModel
 from pydantic import Field
@@ -12,10 +10,10 @@ class ExchangeConfig(BaseModel):
     """Configuration for a specific exchange."""
 
     base_url: str = Field(..., description="Base URL of the exchange")
-    pdf_selectors: List[str] = Field(
+    pdf_selectors: list[str] = Field(
         default_factory=list, description="CSS selectors for PDF links"
     )
-    keywords: List[str] = Field(
+    keywords: list[str] = Field(
         default_factory=list, description="Keywords to identify prospectus documents"
     )
 
@@ -49,7 +47,7 @@ class AppSettings(BaseSettings):
     log_level: str = Field(default="INFO", description="Logging level")
 
     # Exchange configurations
-    exchanges: Dict[str, ExchangeConfig] = Field(
+    exchanges: dict[str, ExchangeConfig] = Field(
         default_factory=lambda: {
             "cninfo": ExchangeConfig(
                 base_url="http://www.cninfo.com.cn",

@@ -1,14 +1,15 @@
 """Metadata generator module for creating download records."""
+from __future__ import annotations
 
 from datetime import datetime
+from datetime import timezone
 from pathlib import Path
 from typing import Any
-from typing import Dict
 
 
 def generate_metadata(
     original_url: str, pdf_url: str, file_path: str
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Generate metadata for the downloaded PDF file.
 
     Args:
@@ -30,10 +31,41 @@ def generate_metadata(
         "pdf_url": pdf_url,
         "file_path": file_path,
         "file_hash": "",
-        "download_time": datetime.now().isoformat(),
+        "download_time": datetime.now(timezone.utc).isoformat(),
         "file_size": 0,
         "exchange_type": "",
         "tool_version": "1.0.0",
+    }
+
+
+def generate_metadata_template(file_path: str) -> dict[str, str | int | list]:
+    """Generate a metadata template for downloaded files.
+
+    Args:
+        file_path: Path to the downloaded file (unused in current implementation)
+
+    Returns:
+        Dictionary containing metadata template
+    """
+    # Mark unused parameter
+    del file_path
+
+    return {
+        "document_id": "",
+        "company_name": "",
+        "company_name_original": "",
+        "original_url": "",
+        "total_chapters": 0,
+        "download_date": "",
+        "chapters": [],
+        "language": "",
+        "file_path": "",
+        "file_hash": "",
+        "download_time": datetime.now(timezone.utc).isoformat(),
+        "file_size": 0,
+        "exchange_type": "",
+        "document_type": "prospectus",
+        "version": "1.0",
     }
 
 
@@ -41,22 +73,19 @@ def calculate_file_hash(file_path: str, algorithm: str = "sha256") -> str:
     """Calculate hash of the downloaded file.
 
     Args:
-        file_path: Path to the file
-        algorithm: Hash algorithm to use (default: sha256)
+        file_path: Path to the file (unused in current implementation)
+        algorithm: Hash algorithm to use (unused in current implementation)
 
     Returns:
-        Hexadecimal hash string
-
-    Raises:
-        FileNotFoundError: If the file doesn't exist
-        ValueError: If the algorithm is not supported
+        Empty string (placeholder implementation)
     """
     # TODO: Implement file hash calculation
-    # This is a placeholder implementation
+    # Mark unused parameters
+    del file_path, algorithm
     return ""
 
 
-def save_metadata_to_json(metadata: Dict[str, Any], output_path: str) -> None:
+def save_metadata_to_json(metadata: dict[str, Any], output_path: str) -> None:
     """Save metadata to a JSON file.
 
     Args:
