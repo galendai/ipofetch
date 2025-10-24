@@ -48,59 +48,59 @@ async def _fetch_page_content(url: str, *, verbose: bool = False) -> str:
     ) as client:
         response = await client.get(url)
         response.raise_for_status()
-        
+
         # Handle encoding properly for Chinese content from HKEX
         # First check if charset is specified in Content-Type header
-        content_type = response.headers.get('content-type', '').lower()
+        content_type = response.headers.get("content-type", "").lower()
         detected_encoding = None
-        
+
         # Extract charset from Content-Type header
-        if 'charset=' in content_type:
+        if "charset=" in content_type:
             try:
-                detected_encoding = content_type.split('charset=')[1].split(';')[0].strip('\"\'')
+                detected_encoding = content_type.split("charset=")[1].split(";")[0].strip('"\'')
             except (IndexError, ValueError):
                 pass
-        
+
         # If no charset in headers, try to detect from HTML meta tags
         if not detected_encoding:
             content = response.content
             # Look for meta tags with charset or http-equiv
-            if b'<meta' in content[:1000]:  # Check first 1000 bytes
+            if b"<meta" in content[:1000]:  # Check first 1000 bytes
                 try:
                     # Try common Chinese encodings first for HKEX
-                    for encoding in ['big5', 'gb2312', 'gbk', 'utf-8']:
+                    for encoding in ["big5", "gb2312", "gbk", "utf-8"]:
                         try:
-                            decoded = content.decode(encoding, errors='strict')
+                            decoded = content.decode(encoding, errors="strict")
                             # Check if it contains valid Chinese characters
-                            if any('\u4e00' <= char <= '\u9fff' for char in decoded[:2000]):
+                            if any("\u4e00" <= char <= "\u9fff" for char in decoded[:2000]):
                                 detected_encoding = encoding
                                 break
                         except UnicodeDecodeError:
                             continue
                 except Exception:
                     pass
-        
+
         # Default to BIG5 for HKEX Traditional Chinese content
         if not detected_encoding:
-            detected_encoding = 'big5'
-        
+            detected_encoding = "big5"
+
         try:
             # Try to decode with detected encoding
             return response.content.decode(detected_encoding)
         except UnicodeDecodeError:
             # Fallback to BIG5 with replace errors for HKEX content
-            return response.content.decode('big5', errors='replace')
+            return response.content.decode("big5", errors="replace")
 
 
-def _extract_company_info(parser: HKEXNewsParser, html_content: str) -> tuple[str, str]:
-    """Extract company name and original name from HTML content.
+def _extract_company_info(parser: HKEXNewsParser, html_content: str) -> tuple[str, str, str]:
+    """Extract company name, original name, and stock code from HTML content.
 
     Args:
         parser: HKEXNewsParser instance
         html_content: HTML content to parse
 
     Returns:
-        Tuple of (company_name, company_name_original)
+        Tuple of (company_name, company_name_original, stock_code)
     """
     company_name = parser.extract_company_name(html_content)
     company_name_original = company_name  # Store original Chinese name
@@ -108,7 +108,10 @@ def _extract_company_info(parser: HKEXNewsParser, html_content: str) -> tuple[st
         company_name = "Unknown Company"
         company_name_original = "未知公司"
 
-    return company_name, company_name_original
+    # Extract stock code
+    stock_code = parser.extract_stock_code(html_content)
+
+    return company_name, company_name_original, stock_code
 
 
 async def _process_download_and_metadata(
@@ -118,6 +121,7 @@ async def _process_download_and_metadata(
     company_name: str,
     company_name_original: str,
     document_id: str,
+    stock_code: str,
     url: str,
     output_dir: str,
     *,
@@ -132,6 +136,7 @@ async def _process_download_and_metadata(
         company_name: Company name
         company_name_original: Original company name
         document_id: Document ID
+        stock_code: Stock code
         url: Original URL
         output_dir: Output directory
         verbose: Whether to enable verbose output
@@ -150,6 +155,7 @@ async def _process_download_and_metadata(
         output_dir=output_dir,
         company_name=company_name,
         document_id=document_id,
+        stock_code=stock_code,
     )
 
     # Generate metadata
@@ -247,7 +253,7 @@ async def download_hkex_prospectus(
             raise RuntimeError(msg)
 
         # Extract company information
-        company_name, company_name_original = _extract_company_info(parser, html_content)
+        company_name, company_name_original, stock_code = _extract_company_info(parser, html_content)
 
         # Extract document ID
         document_id = parser._extract_document_id(url)
@@ -267,6 +273,7 @@ async def download_hkex_prospectus(
             company_name=company_name,
             company_name_original=company_name_original,
             document_id=document_id,
+            stock_code=stock_code,
             url=url,
             output_dir=output_dir,
             verbose=verbose,

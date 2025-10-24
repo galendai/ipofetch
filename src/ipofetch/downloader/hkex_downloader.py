@@ -9,11 +9,9 @@ from pathlib import Path
 import httpx
 from rich.console import Console
 from rich.progress import BarColumn
-from rich.progress import DownloadColumn
 from rich.progress import Progress
 from rich.progress import TextColumn
 from rich.progress import TimeRemainingColumn
-from rich.progress import TransferSpeedColumn
 
 from ipofetch.types import BatchResult
 from ipofetch.types import DownloadResult
@@ -50,6 +48,7 @@ class HKEXDownloader:
         output_dir: str,
         company_name: str,
         document_id: str,
+        stock_code: str = "",
     ) -> DownloadResult:
         """Download a single chapter.
 
@@ -58,6 +57,7 @@ class HKEXDownloader:
             output_dir: Output directory path
             company_name: Company name for file naming
             document_id: Document ID for file naming
+            stock_code: Stock code for file naming
 
         Returns:
             DownloadResult with download status and metadata
@@ -65,10 +65,18 @@ class HKEXDownloader:
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
 
-        # Generate filename - use sanitized Chinese company name to preserve Unicode characters
+        # Generate filename with new naming convention: 股票代码-公司名称-章节序号-章节名称-下载文件时间戳.pdf
         safe_company_name = self._sanitize_filename(company_name)
-        safe_chapter_title = self._sanitize_filename(chapter.chapter_title)  # Sanitize chapter title too
-        filename = f"{safe_company_name}_{document_id}_chapter_{chapter.chapter_number:02d}_{safe_chapter_title}.pdf"
+        safe_chapter_title = self._sanitize_filename(chapter.chapter_title_original)  # Use original Chinese title
+
+        # Generate timestamp for filename in UTC format (suitable for users in different time zones)
+        import datetime
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d%H%M%S") + "UTC"
+
+        # Use stock code if available, otherwise use document_id as fallback
+        code_prefix = stock_code if stock_code else document_id
+
+        filename = f"{code_prefix}-{safe_company_name}-{chapter.chapter_number:02d}-{safe_chapter_title}-{timestamp}.pdf"
         file_path = output_path / filename
 
         # Skip if file already exists
@@ -173,6 +181,7 @@ class HKEXDownloader:
         output_dir: str,
         company_name: str,
         document_id: str,
+        stock_code: str = "",
     ) -> BatchResult:
         """Download all chapters with progress display.
 
@@ -181,6 +190,7 @@ class HKEXDownloader:
             output_dir: Output directory path
             company_name: Company name for file naming
             document_id: Document ID for file naming
+            stock_code: Stock code for file naming
 
         Returns:
             BatchResult with overall download statistics
@@ -224,7 +234,7 @@ class HKEXDownloader:
                     await asyncio.sleep(random.uniform(1, 3))
 
                     result = await self.download_chapter(
-                        chapter, output_dir, company_name, document_id
+                        chapter, output_dir, company_name, document_id, stock_code
                     )
 
                     progress.advance(task)

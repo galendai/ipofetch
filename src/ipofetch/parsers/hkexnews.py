@@ -97,6 +97,19 @@ class HKEXNewsParser(BaseParser):
         try:
             tree = html.fromstring(html_content)
 
+            # First try to extract from title (most reliable for HKEX pages)
+            title_elements = tree.xpath("//title")
+            if title_elements:
+                title_text = title_elements[0].text_content().strip()
+                # Extract company name from title (before stock code in parentheses)
+                match = re.search(r"^(.+?)\s*\(\d{5}\)", title_text)
+                if match:
+                    company_name = match.group(1).strip()
+                    # Remove common suffixes like " - 招股章程"
+                    company_name = re.sub(r"\s*-\s*.+$", "", company_name)
+                    if company_name:
+                        return company_name
+
             # Look for company name in the specific font element with type="compName"
             company_elements = tree.xpath('//font[@type="compName"]')
             if company_elements:
@@ -111,6 +124,60 @@ class HKEXNewsParser(BaseParser):
                 if text and len(text) > 5:  # Reasonable company name length
                     # Remove the " - B" suffix if present
                     return re.sub(r"\s*-\s*[A-Z]$", "", text)
+
+        except (ValueError, TypeError, AttributeError):
+            pass
+
+        return ""
+
+    def extract_stock_code(self, html_content: str) -> str:
+        """Extract stock code from HTML content.
+
+        Args:
+            html_content: HTML content of the page
+
+        Returns:
+            Stock code if found, empty string otherwise
+        """
+        if not html_content:
+            return ""
+
+        try:
+            tree = html.fromstring(html_content)
+
+            # Look for stock code patterns in various elements
+            # Pattern 1: Look for 5-digit stock codes (e.g., 00853, 01234)
+            text_content = tree.text_content()
+
+            # Search for stock code patterns like "股份代號: 00853" or "Stock Code: 00853"
+            stock_code_patterns = [
+                r"股份代號[:\uff1a]\s*(\d{5})",  # Using Unicode escape for fullwidth colon
+                r"股票代碼[:\uff1a]\s*(\d{5})",
+                r"代號[:\uff1a]\s*(\d{5})",
+                r"Stock\s+Code[:\uff1a]\s*(\d{5})",
+                r"Code[:\uff1a]\s*(\d{5})",
+                r"\((\d{5})\)",  # Stock code in parentheses
+            ]
+
+            for pattern in stock_code_patterns:
+                match = re.search(pattern, text_content, re.IGNORECASE)
+                if match:
+                    return match.group(1)
+
+            # Pattern 2: Look in title or meta tags
+            title_elements = tree.xpath("//title")
+            for element in title_elements:
+                title_text = element.text_content().strip()
+                match = re.search(r"\((\d{5})\)", title_text)
+                if match:
+                    return match.group(1)
+
+            # Pattern 3: Look for stock code in table headers or cells
+            table_cells = tree.xpath("//td | //th")
+            for cell in table_cells:
+                cell_text = cell.text_content().strip()
+                if re.match(r"^\d{5}$", cell_text):
+                    return cell_text
 
         except (ValueError, TypeError, AttributeError):
             pass
