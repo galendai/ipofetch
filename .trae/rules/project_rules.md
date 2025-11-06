@@ -45,6 +45,7 @@
 - 所有外部输入（命令行参数、环境变量）必须进行合法性校验。
 - 构造 URL 或文件路径时，必须使用安全方式（如 `urllib.parse.urljoin`、`pathlib.Path`），禁止字符串拼接。
 ## 三、依赖与工具链要求
+- 项目通过uv管理虚拟环境。
 - 所有依赖必须在 `pyproject.toml` 中通过 `[project.dependencies]` 声明。
 - 项目必须集成 `ruff` 作为格式化与 lint 工具，并在 CI 中强制执行。
 - 禁止使用已弃用或停止维护的第三方库。

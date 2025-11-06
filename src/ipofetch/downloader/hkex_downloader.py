@@ -65,18 +65,17 @@ class HKEXDownloader:
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
 
-        # Generate filename with new naming convention: 股票代码-公司名称-章节序号-章节名称-下载文件时间戳.pdf
+        # Generate filename according to HKEX rules: {company}_{doc_id}_{chapter_num}_{title}.pdf
+        # Use original company name without simplification
         safe_company_name = self._sanitize_filename(company_name)
-        safe_chapter_title = self._sanitize_filename(chapter.chapter_title_original)  # Use original Chinese title
+        
+        # Sanitize chapter title and limit to first 10 characters
+        safe_chapter_title = self._sanitize_filename(chapter.chapter_title_original)
+        if len(safe_chapter_title) > 10:
+            safe_chapter_title = safe_chapter_title[:10]
 
-        # Generate timestamp for filename in UTC format (suitable for users in different time zones)
-        import datetime
-        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d%H%M%S") + "UTC"
-
-        # Use stock code if available, otherwise use document_id as fallback
-        code_prefix = stock_code if stock_code else document_id
-
-        filename = f"{code_prefix}-{safe_company_name}-{chapter.chapter_number:02d}-{safe_chapter_title}-{timestamp}.pdf"
+        # Use document_id as per naming rules (12-digit format)
+        filename = f"{safe_company_name}_{document_id}_{chapter.chapter_number:02d}_{safe_chapter_title}.pdf"
         file_path = output_path / filename
 
         # Skip if file already exists
@@ -330,6 +329,18 @@ class HKEXDownloader:
             sanitized = "chapter"
 
         return sanitized.strip()
+
+    def _simplify_company_name(self, chinese_name: str) -> str:
+        """Simplify Chinese company name - DEPRECATED, now uses original name directly.
+        
+        Args:
+            chinese_name: Original Chinese company name
+            
+        Returns:
+            Original company name (no simplification)
+        """
+        # This method is kept for backward compatibility but no longer performs simplification
+        return chinese_name if chinese_name else "Company"
 
     def _generate_english_company_name(self, chinese_name: str) -> str:
         """Generate English company name from Chinese name.

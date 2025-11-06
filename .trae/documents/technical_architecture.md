@@ -154,7 +154,13 @@ src/ipofetch/
 ├── metadata/                # 元数据生成和管理
 │   ├── __init__.py
 │   ├── generator.py         # 通用元数据生成器
-│   └── hkex_generator.py    # 香港交易所元数据生成器
+│   ├── hkex_generator.py    # 香港交易所元数据生成器
+│   └── hkex_schema.json     # HKEX数据结构模式
+├── mapping/                 # 章节映射功能（新模块）
+│   ├── __init__.py
+│   ├── chapter_mapper.py    # 章节页码映射器
+│   ├── page_calculator.py   # 页码计算器
+│   └── hkex_mapping.py      # HKEX专用映射生成器
 └── config/                  # 配置管理
     ├── __init__.py
     └── settings.py          # 应用设置和环境变量
@@ -362,6 +368,26 @@ erDiagram
         float retry_delay
         string output_directory
     }
+    
+    CHAPTER_MAPPING {
+        string document_id PK
+        string company_name
+        string company_name_original
+        string stock_code
+        datetime download_date
+        int total_chapters
+        int total_pages
+    }
+    
+    CHAPTER_PAGE_MAPPING {
+        int chapter_number PK
+        string chapter_title
+        string chapter_title_original
+        string local_file
+        int start_page
+        int end_page
+        string document_id FK
+    }
 ```
 
 ### 6.2 数据定义语言
@@ -377,6 +403,37 @@ erDiagram
   "file_size": 2048576,
   "exchange_type": "cninfo",
   "tool_version": "1.0.0"
+}
+```
+
+HKEX章节映射文件结构
+```json
+{
+  "document_info": {
+    "company_name": "Example Company Limited",
+    "company_name_original": "示例有限公司",
+    "document_id": "2024120112345",
+    "stock_code": "01234",
+    "download_date": "2024-12-01T10:30:00Z",
+    "total_chapters": 15,
+    "total_pages": 256,
+    "tool_version": "1.0.0"
+  },
+  "chapter_mapping": [
+    {
+      "chapter_number": 1,
+      "chapter_title": "Cover",
+      "chapter_title_original": "封面",
+      "local_file": "01234-Example_Company_Limited-01-封面-20241201123000UTC.pdf",
+      "page_range": {
+        "start_page": 1,
+        "end_page": 2,
+        "page_count": 2
+      },
+      "file_size": 65536,
+      "pdf_url": "https://www1.hkexnews.hk/listedco/listconews/.../chapter1.pdf"
+    }
+  ]
 }
 ```
 

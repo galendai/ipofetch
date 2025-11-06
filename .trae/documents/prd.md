@@ -20,6 +20,7 @@
 | **本地保存** | 保存 PDF 至指定目录（默认 `./prospectus/`），支持自定义文件名 |
 | **基础元数据** | 同步生成 JSON 文件，含原始 URL、PDF URL、下载时间、文件哈希 |
 | **Python API** | 提供 `download_prospectus_from_url(url, output_dir)` 函数，供 Agentic 系统调用 |
+| **HKEX章节映射** | 针对香港交易所文档，生成章节映射文件，记录每个章节对应的完整文档页码 |
 
 > **不包含**：股票代码识别、自动搜索、批量股票下载、浏览器自动化。
 
@@ -92,6 +93,10 @@ result = download_prospectus_from_url(
 print(f"下载成功: {result['success']}")
 print(f"PDF路径: {result['pdf_path']}")
 print(f"元数据路径: {result['metadata_path']}")
+
+# 对于香港交易所文档，还会生成章节映射文件
+if 'chapter_mapping_path' in result:
+    print(f"章节映射路径: {result['chapter_mapping_path']}")
 ```
 
 ---
@@ -110,18 +115,78 @@ print(f"元数据路径: {result['metadata_path']}")
 - 下载进度条显示
 - 清晰的错误信息和建议
 - 详细模式下的调试信息
+- 香港交易所文档下载完成后显示章节映射信息
 
 ---
 
-## 7. 安全和合规考虑
+## 7. HKEX章节映射功能（新功能）
 
-### 7.1 网络请求
+### 7.1 功能背景
+香港股票交易所（HKEX）的招股说明书通常按章节切分为多个独立的PDF文件下载。为了便于用户理解这些章节在完整文档中的位置，需要建立一个映射文件，明确每个下载的章节对应完整文档的具体页码范围。
+
+### 7.2 映射文件格式
+映射文件采用JSON格式，包含以下信息：
+- 文档基本信息（公司名、文档ID、下载时间等）
+- 每个章节的详细信息（章节号、标题、本地文件路径等）
+- 章节在完整文档中的页码范围（起始页码和结束页码）
+
+### 7.3 页码映射逻辑
+- **章节顺序**：按照HKEX官方章节顺序排列
+- **页码计算**：基于章节文件大小和平均页密度估算，或从PDF元数据提取
+- **验证机制**：提供页码范围合理性检查，确保连续性
+
+### 7.4 映射文件示例
+```json
+{
+  "document_info": {
+    "company_name": "Example Company Limited",
+    "company_name_original": "示例有限公司",
+    "document_id": "2024120112345",
+    "stock_code": "01234",
+    "download_date": "2024-12-01T10:30:00Z",
+    "total_chapters": 15,
+    "total_pages": 256
+  },
+  "chapter_mapping": [
+    {
+      "chapter_number": 1,
+      "chapter_title": "Cover",
+      "chapter_title_original": "封面",
+      "local_file": "01234-Example_Company_Limited-01-封面-20241201123000UTC.pdf",
+      "page_range": {
+        "start_page": 1,
+        "end_page": 2
+      }
+    },
+    {
+      "chapter_number": 2,
+      "chapter_title": "Table_of_Contents",
+      "chapter_title_original": "目录",
+      "local_file": "01234-Example_Company_Limited-02-目录-20241201123005UTC.pdf",
+      "page_range": {
+        "start_page": 3,
+        "end_page": 8
+      }
+    }
+  ]
+}
+```
+
+### 7.5 使用场景
+- **文档重组**：用户可以将分散的章节按页码顺序重新组合成完整文档
+- **内容定位**：快速定位特定内容在完整文档中的位置
+- **研究分析**：便于进行跨章节的内容分析和引用
+- **自动化处理**：为后续Agentic系统提供结构化的文档导航信息
+
+## 8. 安全和合规考虑
+
+### 8.1 网络请求
 - 默认 User-Agent: "IPOFetch/1.0.0"
 - 请求间隔: ≥1秒（可配置）
 - 超时设置: 30秒（可配置）
 - 重试机制: 最多3次，指数退避
 
-### 7.2 数据安全
+### 8.2 数据安全
 - 不记录敏感信息
 - 文件哈希验证
 - 安全的文件路径处理

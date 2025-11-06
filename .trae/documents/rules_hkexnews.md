@@ -8,17 +8,32 @@
 
 ### 2.1 典型URL格式
 ```
-https://www1.hkexnews.hk/listedco/listconews/sehk/YYYY/MM/DD/XXXXXXXXXX_c.htm
+https://www1.hkexnews.hk/listedco/listconews/sehk/YYYY/MM/DD/{document_id}_c.htm
 ```
 
 其中：
 - `YYYY/MM/DD`：发布日期（年/月/日）
-- `XXXXXXXXXX`：文档编号（10位数字）
+- `{document_id}`：文档编号（可变长度，包含字母和数字）
 - `_c.htm`：中文版本标识
 
-### 2.2 示例URL
+### 2.2 文档ID格式分析
+文档ID有两种主要格式：
+
+1. **现代格式**（2020年后为主）：
+   - 纯数字，通常12位
+   - 示例：`2022120700981`, `2022072601437`
+   
+2. **传统格式**（2020年前）：
+   - 以`ltn`开头 + 年月日 + 序列号
+   - 示例：`ltn20100913006`, `ltn20131129074`, `ltn20040308000`
+
+### 2.3 示例URL
 ```
+# 现代格式
 https://www1.hkexnews.hk/listedco/listconews/sehk/2022/1230/2022120700981_c.htm
+
+# 传统格式
+https://www1.hkexnews.hk/listedco/listconews/sehk/2010/0913/ltn20100913006_c.htm
 ```
 
 ## 3. 页面结构分析
@@ -29,6 +44,33 @@ https://www1.hkexnews.hk/listedco/listconews/sehk/2022/1230/2022120700981_c.htm
 1. **章节导航区域**：包含所有章节链接的表格或列表
 2. **PDF链接格式**：相对路径，需要拼接基础URL
 3. **章节命名规则**：使用中文章节名称
+4. **编码格式**：可能是UTF-8或Big5（传统文档）
+
+### 3.2 HTML结构类型
+根据年份不同，HTML结构分为两类：
+
+1. **现代结构**（2020年后）：
+   - 使用UTF-8编码
+   - 包含完整的HTML文档结构
+   - PDF链接通常在表格或div中
+   
+2. **传统结构**（2020年前）：
+   - 使用Big5编码（繁体中文）
+   - HTML结构较简单
+   - 可能在HTML注释中包含文件列表
+   - 示例注释格式：
+     ```
+     <!--
+     Multi-Files
+     C
+     Main Board
+     D:\EPS\Working\Submit\20100913\353769\00853
+     C101.pdf
+     C102.pdf
+     ...
+     End
+     -->
+     ```
 
 ### 3.2 关键HTML元素
 ```html
@@ -45,20 +87,37 @@ https://www1.hkexnews.hk/listedco/listconews/sehk/2022/1230/2022120700981_c.htm
 ## 4. PDF链接提取规则
 
 ### 4.1 链接格式规则
-每个PDF链接遵循以下格式：
-```
-../{doc_id}/{doc_id}_{chapter_num}.pdf
-```
+PDF链接有两种主要格式，取决于文档的发布年份和系统：
+
+1. **现代格式**（2020年后）：
+   ```
+   ../{doc_id}/{doc_id}_{chapter_num}.pdf
+   ```
+
+2. **传统格式**（2020年前）：
+   ```
+   {prefix}{chapter_num}.pdf
+   ```
+   其中`{prefix}`可能是：`C`, `CWF`, `ltn`等
 
 其中：
 - `{doc_id}`：文档ID（从URL中提取）
-- `{chapter_num}`：章节编号（1, 2, 3...）
+- `{chapter_num}`：章节编号（1, 2, 3...或01, 02, 03...）
 
 ### 4.2 完整PDF URL构建
 基础URL + 相对路径：
-```
-https://www1.hkexnews.hk/listedco/listconews/sehk/YYYY/MM/DD/ + {doc_id}_{chapter_num}.pdf
-```
+
+1. **现代格式**：
+   ```
+   https://www1.hkexnews.hk/listedco/listconews/sehk/YYYY/MM/DD/{doc_id}/{doc_id}_{chapter_num}.pdf
+   ```
+
+2. **传统格式**：
+   ```
+   https://www1.hkexnews.hk/listedco/listconews/sehk/YYYY/MM/DD/{prefix}{chapter_num}.pdf
+   ```
+
+注意：需要根据实际HTML中的相对路径进行拼接。
 
 ### 4.3 章节识别规则
 1. **章节编号**：从1开始连续编号
@@ -75,13 +134,19 @@ https://www1.hkexnews.hk/listedco/listconews/sehk/YYYY/MM/DD/ + {doc_id}_{chapte
 
 ### 5.2 文件命名规则
 ```
-{company_name}_{doc_id}_chapter_{chapter_num}_{chapter_title}.pdf
+{company}_{doc_id}_{chapter_num}_{title}.pdf
 ```
+
+规则说明：
+- `company`: 公司名称（自动简化为2-4字简称）
+- `doc_id`: 12位文档编号
+- `chapter_num`: 两位数章节序号（01, 02...）
+- `title`: 章节标题（前10个字符，移除特殊符号）
 
 示例：
 ```
-腾讯控股_2022120700981_chapter_01_警告.pdf
-腾讯控股_2022120700981_chapter_02_重要提示.pdf
+腾讯_2022120700981_01_警告.pdf
+腾讯_2022120700981_02_重要提示.pdf
 ```
 
 ### 5.3 元数据记录
@@ -112,7 +177,10 @@ https://www1.hkexnews.hk/listedco/listconews/sehk/YYYY/MM/DD/ + {doc_id}_{chapte
 ### 6.2 解析错误
 - **HTML结构变化**：记录错误日志，跳过该文档
 - **链接提取失败**：尝试备用解析策略
-- **编码问题**：使用UTF-8编码处理中文内容
+- **编码问题**：
+  - 现代文档：使用UTF-8编码
+  - 传统文档：使用Big5编码（繁体中文）
+  - 自动检测编码或根据文档年份判断
 
 ### 6.3 文件系统错误
 - **磁盘空间不足**：检查可用空间，小于100MB时停止
@@ -180,8 +248,14 @@ class HKEXNewsParser(BaseParser):
     def extract_company_name(self, html_content: str) -> str:
         """从HTML中提取公司名称"""
 
-    def get_expected_chapter_count(self) -> int:
-        """获取预期章节数量"""
+    def get_document_type(self, url: str) -> str:
+        """判断文档类型：modern或traditional"""
+
+    def detect_encoding(self, html_content: str) -> str:
+        """检测HTML编码：UTF-8或Big5"""
+
+    def parse_comment_file_list(self, html_content: str) -> List[str]:
+        """解析HTML注释中的文件列表（传统格式）"""
 ```
 
 ### 10.2 下载器接口
@@ -204,22 +278,51 @@ class HKEXMetadataGenerator:
         """生成章节级元数据"""
 ```
 
-## 11. 测试用例
+## 11. 解析策略
 
-### 11.1 单元测试
-- URL解析测试
-- HTML解析测试
-- 文件命名测试
+### 11.1 现代文档解析（2020年后）
+1. 检测UTF-8编码
+2. 解析完整HTML结构
+3. 提取表格或div中的PDF链接
+4. 使用标准相对路径拼接
+
+### 11.2 传统文档解析（2020年前）
+1. 检测Big5编码
+2. 检查HTML注释中的文件列表
+3. 解析简化的HTML结构
+4. 处理不同的文件前缀（C, CWF, ltn等）
+
+### 11.3 混合解析策略
+1. **自动检测**：根据URL年份或HTML特征自动选择解析器
+2. **回退机制**：主解析失败时尝试备用解析器
+3. **编码自适应**：根据meta标签或内容特征检测编码
+
+## 13. 测试用例
+
+### 13.1 单元测试
+- URL解析测试（现代和传统格式）
+- HTML解析测试（不同编码和结构）
+- 文件命名测试（验证简化格式）
+- 元数据生成测试
 - 错误处理测试
+- 编码检测测试
 
-### 11.2 集成测试
-- 完整文档下载测试
+### 13.2 集成测试
+- 完整文档下载测试（现代和传统）
 - 网络异常测试
 - 并发下载测试
 - 大文件下载测试
+- 编码转换测试
+- 元数据完整性测试
 
-### 11.3 示例测试URL
+### 13.3 示例测试URL
 ```
-# 中文版本
+# 现代格式（2020年后）
 https://www1.hkexnews.hk/listedco/listconews/sehk/2022/1230/2022120700981_c.htm
+https://www1.hkexnews.hk/listedco/listconews/sehk/2022/0905/2022072601437_c.htm
+
+# 传统格式（2020年前）
+https://www1.hkexnews.hk/listedco/listconews/sehk/2010/0913/ltn20100913006_c.htm
+https://www1.hkexnews.hk/listedco/listconews/sehk/2013/1129/ltn20131129074_c.htm
+https://www1.hkexnews.hk/listedco/listconews/sehk/2004/0308/ltn20040308000_c.htm
 ```
