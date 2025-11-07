@@ -95,6 +95,10 @@ def main(
                 console.print(
                     f"[dim]Metadata saved to: {result['metadata_path']}[/dim]"
                 )
+                if "mapping_path" in result:
+                    console.print(
+                        f"[dim]PDF mapping saved to: {result['mapping_path']}[/dim]"
+                    )
                 console.print(f"[dim]File size: {result['file_size']} bytes[/dim]")
                 console.print(
                     f"[dim]Download time: {result['download_time']:.2f}s[/dim]"

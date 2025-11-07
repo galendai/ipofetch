@@ -11,6 +11,7 @@ from rich.console import Console
 from ipofetch.downloader.hkex_downloader import HKEXDownloader
 from ipofetch.metadata.hkex_generator import HKEXMetadataGenerator
 from ipofetch.parsers.hkexnews import HKEXNewsParser
+from ipofetch.utils.pdf_mapping import PDFMappingGenerator
 
 
 if TYPE_CHECKING:
@@ -117,6 +118,7 @@ def _extract_company_info(parser: HKEXNewsParser, html_content: str) -> tuple[st
 async def _process_download_and_metadata(
     downloader: HKEXDownloader,
     metadata_generator: HKEXMetadataGenerator,
+    mapping_generator: PDFMappingGenerator,
     chapters: list,
     company_name: str,
     company_name_original: str,
@@ -126,7 +128,7 @@ async def _process_download_and_metadata(
     output_dir: str,
     *,
     verbose: bool = False,
-) -> DocumentMetadata:
+) -> tuple[DocumentMetadata, BatchResult]:
     """Process download and generate metadata.
 
     Args:
@@ -142,7 +144,7 @@ async def _process_download_and_metadata(
         verbose: Whether to enable verbose output
 
     Returns:
-        DocumentMetadata with download results
+        Tuple of (DocumentMetadata, BatchResult) with download results
     """
     console = Console()
 
@@ -172,6 +174,22 @@ async def _process_download_and_metadata(
         output_dir=output_dir,
     )
 
+    # Generate PDF mapping after successful downloads
+    if batch_result.successful_downloads > 0:
+        if verbose:
+            console.print("[yellow]Generating PDF mapping...[/yellow]")
+
+        try:
+            mapping_file = mapping_generator.generate_and_save_mapping(
+                directory=output_dir,
+                metadata_filename=f"{company_name}_{document_id}.json",
+            )
+            if verbose:
+                console.print(f"[green]PDF mapping saved to: {mapping_file}[/green]")
+        except Exception as e:
+            # Log error but don't fail the entire process
+            console.print(f"[yellow]Warning: Failed to generate PDF mapping: {e}[/yellow]")
+
     # Save metadata to file
     metadata_file = metadata_generator.save_metadata_to_file(
         metadata=document_metadata,
@@ -197,7 +215,7 @@ async def _process_download_and_metadata(
     # Print summary
     console.print("\n" + summary_report)
 
-    return document_metadata
+    return document_metadata, batch_result
 
 
 async def download_hkex_prospectus(
@@ -206,7 +224,7 @@ async def download_hkex_prospectus(
     max_concurrent: int = 3,
     *,
     verbose: bool = False,
-) -> DocumentMetadata:
+) -> tuple[DocumentMetadata, float]:
     """Download HKEXnews prospectus with all chapters.
 
     Args:
@@ -216,7 +234,7 @@ async def download_hkex_prospectus(
         verbose: Enable verbose output
 
     Returns:
-        DocumentMetadata with download results
+        Tuple of (DocumentMetadata, total_download_time)
 
     Raises:
         ValueError: If URL is not supported or invalid
@@ -233,6 +251,7 @@ async def download_hkex_prospectus(
     parser = HKEXNewsParser()
     downloader = HKEXDownloader(max_concurrent=max_concurrent)
     metadata_generator = HKEXMetadataGenerator()
+    mapping_generator = PDFMappingGenerator()
 
     # Validate URL
     if not parser.is_supported_url(url):
@@ -266,9 +285,10 @@ async def download_hkex_prospectus(
             console.print(f"Document ID: {document_id}")
 
         # Process download and metadata generation
-        return await _process_download_and_metadata(
+        document_metadata, batch_result = await _process_download_and_metadata(
             downloader=downloader,
             metadata_generator=metadata_generator,
+            mapping_generator=mapping_generator,
             chapters=chapters,
             company_name=company_name,
             company_name_original=company_name_original,
@@ -278,6 +298,8 @@ async def download_hkex_prospectus(
             output_dir=output_dir,
             verbose=verbose,
         )
+
+        return document_metadata, batch_result.total_time
 
     except httpx.HTTPError as e:
         msg = f"Failed to fetch page content: {e}"
@@ -293,7 +315,7 @@ def download_hkex_prospectus_sync(
     max_concurrent: int = 3,
     *,
     verbose: bool = False,
-) -> DocumentMetadata:
+) -> tuple[DocumentMetadata, float]:
     """Synchronous wrapper for HKEXnews prospectus download.
 
     Args:
@@ -303,7 +325,7 @@ def download_hkex_prospectus_sync(
         verbose: Enable verbose output
 
     Returns:
-        DocumentMetadata with download results
+        Tuple of (DocumentMetadata, total_download_time)
 
     Raises:
         ValueError: If URL is not supported or invalid

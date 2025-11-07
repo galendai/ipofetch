@@ -40,7 +40,7 @@ def download_prospectus_from_url(
 
     try:
         # Use HKEXnews downloader
-        metadata = download_hkex_prospectus_sync(
+        metadata, download_time = download_hkex_prospectus_sync(
             url=url,
             output_dir=output_dir,
             verbose=True,
@@ -52,12 +52,16 @@ def download_prospectus_from_url(
             if chapter.file_size is not None
         )
 
+        # Construct mapping file path
+        mapping_path = f"./prospectus/{metadata.company_name}_{metadata.document_id}_mapping.json"
+
         return {
             "success": True,
             "pdf_path": f"./prospectus/{metadata.company_name}_{metadata.document_id}/",
             "metadata_path": f"./prospectus/{metadata.company_name}_{metadata.document_id}_metadata.json",
+            "mapping_path": mapping_path,
             "file_size": total_size,
-            "download_time": 0.0,  # Will be calculated from batch result
+            "download_time": download_time,
         }
     except ValueError:
         # Re-raise ValueError as is (URL validation errors)
