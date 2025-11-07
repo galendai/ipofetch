@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import random
+import tempfile
 import time
 from pathlib import Path
 
@@ -68,7 +70,7 @@ class HKEXDownloader:
         # Generate filename according to HKEX rules: {company}_{doc_id}_{chapter_num}_{title}.pdf
         # Use original company name without simplification
         safe_company_name = self._sanitize_filename(company_name)
-        
+
         # Sanitize chapter title and limit to first 10 characters
         safe_chapter_title = self._sanitize_filename(chapter.chapter_title_original)
         if len(safe_chapter_title) > 10:
@@ -78,7 +80,7 @@ class HKEXDownloader:
         filename = f"{safe_company_name}_{document_id}_{chapter.chapter_number:02d}_{safe_chapter_title}.pdf"
         file_path = output_path / filename
 
-        # Skip if file already exists
+        # Check if file already exists (initial check)
         if file_path.exists():
             return DownloadResult(
                 success=True,
@@ -111,12 +113,44 @@ class HKEXDownloader:
                     response = await client.get(chapter.pdf_url)
                     response.raise_for_status()
 
-                    # Write file
-                    with Path(file_path).open("wb") as f:
-                        f.write(response.content)
+                    # Atomic file write using temporary file + atomic move
+                    temp_file_path = None
+                    try:
+                        # Create temporary file in the same directory to ensure atomic move
+                        with tempfile.NamedTemporaryFile(
+                            mode="wb",
+                            dir=file_path.parent,
+                            prefix=f".tmp_{file_path.stem}_",
+                            suffix=".tmp",
+                            delete=False
+                        ) as temp_file:
+                            temp_file_path = Path(temp_file.name)
+                            temp_file.write(response.content)
+
+                        # Atomic move to final destination
+                        # On Windows, this may not be atomic if destination exists, but we already checked
+                        temp_file_path.replace(file_path)
+                        temp_file_path = None  # Successfully moved
+
+                    finally:
+                        # Clean up temp file if something went wrong
+                        if temp_file_path and temp_file_path.exists():
+                            with contextlib.suppress(OSError):
+                                temp_file_path.unlink()
 
                     download_time = time.time() - start_time
                     file_size = len(response.content)
+
+                    # Final check - file should exist now due to atomic operation
+                    if not file_path.exists():
+                        return DownloadResult(
+                            success=False,
+                            pdf_path="",
+                            metadata_path="",
+                            file_size=0,
+                            download_time=download_time,
+                            error_message="File was not created after atomic move operation",
+                        )
 
                     return DownloadResult(
                         success=True,
@@ -150,7 +184,7 @@ class HKEXDownloader:
 
             except Exception as e:
                 # Network or other errors, retry with exponential backoff
-                f"Attempt {attempt + 1}/{self.max_retries}: {type(e).__name__}: {e!s}"
+                self.console.print(f"Attempt {attempt + 1}/{self.max_retries}: {type(e).__name__}: {e!s}")
 
                 wait_time = 2 ** attempt
                 await asyncio.sleep(wait_time)
@@ -332,10 +366,10 @@ class HKEXDownloader:
 
     def _simplify_company_name(self, chinese_name: str) -> str:
         """Simplify Chinese company name - DEPRECATED, now uses original name directly.
-        
+
         Args:
             chinese_name: Original Chinese company name
-            
+
         Returns:
             Original company name (no simplification)
         """
